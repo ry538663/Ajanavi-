@@ -12,6 +12,11 @@
     "install:all": "npm install && cd ajnavi-backend && npm install && cd ../ajnavi-frontend && npm install"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "neon": "^8.11.3"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.4",
+    "@neon/env": "^1.6.5"
   }
 }

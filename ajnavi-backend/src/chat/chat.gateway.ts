@@ -1,8 +1,12 @@
 import { Logger } from "@nestjs/common";
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 import { IsArray, IsIn, IsObject, IsOptional, IsString, MaxLength } from "class-validator";
 import { Server, Socket } from "socket.io";
 import { ChatMode, MatchService, PublicProfile } from "./match.service";
+import { Report } from "../entities/report.entity";
+import { Session } from "../entities/session.entity";
 
 class MatchDto {
   @IsIn(["text", "video"]) mode: ChatMode = "text";
@@ -14,12 +18,17 @@ class SignalDto { @IsString() roomId: string; @IsString() type: string; data: un
 class ReportDto { @IsString() roomId: string; @IsString() @MaxLength(120) reason: string; }
 type ReportRecord = { roomId: string; reporterSocketId: string; reportedSocketId: string; reason: string; createdAt: string };
 
-@WebSocketGateway({ cors: { origin: process.env.CORS_ORIGIN ?? "http://localhost:3000", credentials: true } })
+@WebSocketGateway({ cors: { origin: true, credentials: true } })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(ChatGateway.name);
   private readonly reports: ReportRecord[] = [];
-  constructor(private readonly matches: MatchService) {}
+  constructor(
+    private readonly matches: MatchService,
+    @InjectRepository(Report) private readonly reportRepo: Repository<Report>,
+    @InjectRepository(Session) private readonly sessionRepo: Repository<Session>,
+  ) {}
+
 
   handleConnection(client: Socket) { this.logger.log(`Connected ${client.id}`); }
   handleDisconnect(client: Socket) { this.leave(client); }
@@ -33,6 +42,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const partner = this.server.sockets.sockets.get(match.partnerId);
     if (!partner) { this.matches.remove(client.id); return this.find(client, body); }
     await Promise.all([client.join(match.roomId), partner.join(match.roomId)]);
+    this.sessionRepo.save({
+      roomId: match.roomId,
+      mode: body?.mode ?? "text",
+      sharedInterests: match.sharedInterests,
+      startedAt: new Date(),
+    }).catch((err) => this.logger.warn(`Failed to persist session: ${err.message}`));
+
     client.emit("matched", { roomId: match.roomId, peerId: partner.id, initiator: true, sharedInterests: match.sharedInterests, partner: match.partnerProfile });
     partner.emit("matched", { roomId: match.roomId, peerId: client.id, initiator: false, sharedInterests: match.sharedInterests, partner: match.requesterProfile });
   }
@@ -60,13 +76,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!reportedSocketId) return;
     this.reports.push({ roomId: body.roomId, reporterSocketId: client.id, reportedSocketId, reason: body.reason?.trim() || "unspecified", createdAt: new Date().toISOString() });
     if (this.reports.length > 1000) this.reports.shift();
+    this.reportRepo.save({
+      roomId: body.roomId,
+      reporterSocketId: client.id,
+      reportedSocketId,
+      reason: body.reason?.trim() || "unspecified",
+    }).catch((err) => this.logger.warn(`Failed to persist report: ${err.message}`));
     client.emit("report-received");
   }
 
   private async leave(client: Socket) {
     const match = this.matches.remove(client.id);
-    if (match) this.server.to(match.partnerId).emit("partner-left");
+    if (match) {
+      this.server.to(match.partnerId).emit("partner-left");
+      this.sessionRepo.update({ roomId: match.roomId }, { endedAt: new Date() })
+        .catch((err) => this.logger.warn(`Failed to update session: ${err.message}`));
+    }
     const rooms = [...client.rooms].filter((room) => room !== client.id);
     for (const roomId of rooms) await client.leave(roomId);
   }
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { authStore, AjnaviProfile } from "@/lib/auth";
+import { authStore, AjnaviProfile, isCompleteProfile } from "@/lib/auth";
 import { ArrowRight, ChevronRight, Flag, Globe2, HeartHandshake, LockKeyhole, LogOut, MessageCircle, Quote, Radio, ShieldCheck, Sparkles, UserRound, Users, Video, WandSparkles, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,16 +13,54 @@ export function Home() {
   const [email, setEmail] = useState<string | null>(null);
   useEffect(() => { const saved = authStore.getProfile(); setProfile(saved); setEmail(authStore.getEmail()); }, []);
   const connect = (mode: "text" | "video") => {
-    const params = new URLSearchParams({ mode }); if (profile?.interests.length) params.set("interests", profile.interests.join(",")); router.push(`/chat?${params}`);
+    const params = new URLSearchParams({ mode });
+    if (profile?.interests.length) params.set("interests", profile.interests.join(","));
+    const chatUrl = `/chat?${params.toString()}`;
+
+    if (!email) {
+      router.push(`/login?redirect=${encodeURIComponent(chatUrl)}`);
+      return;
+    }
+    router.push(chatUrl);
   };
   const logout = () => { authStore.clear(); setEmail(null); setProfile(null); };
 
   return <main className="landing min-h-screen overflow-hidden">
     <nav className="relative z-20 mx-auto flex max-w-7xl items-center justify-between px-5 py-6 md:px-10">
       <a href="#" className="flex items-center gap-2 font-display text-xl font-extrabold tracking-tight"><span className="brand-mark"><Sparkles size={18}/></span>Ajnavi</a>
-      <div className="landing-nav hidden items-center gap-5 text-sm text-[#715b61] md:flex"><a href="#how" className="hover:text-[#19171c]">How it works</a><a href="/chat?mode=text" className="header-mode-link"><MessageCircle size={15}/>Text chat</a><a href="/chat?mode=video" className="header-mode-link header-video-link"><Video size={15}/>Video chat</a><a href="#safety" className="hover:text-[#19171c]">Safety</a><span className="online-pill flex items-center gap-2 rounded-full border border-[#d8d1da] bg-white/60 px-3 py-1.5"><span className="h-2 w-2 rounded-full bg-[#715b61]"/>2,841 online</span></div>
-      <div className="landing-header-actions flex items-center gap-2"><a href="/chat?mode=video" className="inline-flex items-center gap-2 rounded-full bg-[#715b61] px-3.5 py-2.5 text-sm font-semibold text-white shadow-lg md:hidden"><Video size={16}/><span className="hidden sm:inline">Video chat</span></a><ThemeToggle/>{email ? <div className="flex items-center gap-2"><a href="/profile" className="flex items-center gap-2 rounded-full border border-[#d8d1da] bg-white/75 px-3 py-2 text-sm font-semibold"><UserRound size={16}/><span className="hidden sm:inline">{profile?.name || "Profile"}</span></a><button onClick={logout} className="rounded-full p-2 text-[#715b61] hover:bg-white" aria-label="Log out"><LogOut size={18}/></button></div> : <a href="/login" className="rounded-full bg-[#19171c] px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5">Log in</a>}</div>
+      <div className="landing-nav hidden items-center gap-5 text-sm text-[#715b61] md:flex">
+        <a href="#how" className="hover:text-[#19171c]">How it works</a>
+        <button type="button" onClick={() => connect("text")} className="header-mode-link cursor-pointer"><MessageCircle size={15}/>Text chat</button>
+        <button type="button" onClick={() => connect("video")} className="header-mode-link header-video-link cursor-pointer"><Video size={15}/>Video chat</button>
+        <a href="#safety" className="hover:text-[#19171c]">Safety</a>
+        <span className="online-pill flex items-center gap-2 rounded-full border border-[#d8d1da] bg-white/60 px-3 py-1.5"><span className="h-2 w-2 rounded-full bg-[#715b61]"/>2,841 online</span>
+      </div>
+      <div className="landing-header-actions flex items-center gap-2">
+        <button type="button" onClick={() => connect("video")} className="inline-flex items-center gap-2 rounded-full bg-[#715b61] px-3.5 py-2.5 text-sm font-semibold text-white shadow-lg md:hidden"><Video size={16}/><span className="hidden sm:inline">Video chat</span></button>
+        <ThemeToggle/>
+        {email ? (
+          <div className="flex items-center gap-2">
+            <a href="/profile" className="flex items-center gap-2 rounded-full border border-[#d8d1da] bg-white/75 px-3 py-2 text-sm font-semibold">
+              <UserRound size={16}/>
+              <span className="hidden sm:inline">{profile?.name || "Profile"}</span>
+            </a>
+            <button onClick={logout} className="rounded-full p-2 text-[#715b61] hover:bg-white cursor-pointer" aria-label="Log out">
+              <LogOut size={18}/>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <a href="/login" className="rounded-full border border-[#d8d1da] bg-white/70 px-4 py-2 text-sm font-semibold text-[#19171c] transition hover:bg-white hover:-translate-y-0.5">
+              Log in
+            </a>
+            <a href="/signup" className="rounded-full bg-[#19171c] px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-[#322d38] hover:-translate-y-0.5">
+              Sign up
+            </a>
+          </div>
+        )}
+      </div>
     </nav>
+
 
     <section className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 pb-28 pt-12 md:px-10 lg:grid-cols-[1.08fr_.92fr] lg:pt-20">
       <div className="hero-orb hero-orb-one"/><div className="hero-orb hero-orb-two"/>
@@ -39,7 +77,7 @@ export function Home() {
       <div className="world-stories-image"><img src="/images/conversations-everywhere.png" alt="Adults in different cities sharing friendly online conversations"/><div className="world-stories-caption"><span><Radio size={15}/>Happening now</span><p>Four rooms.<br/>One shared moment.</p></div></div>
       <div className="world-stories-panel"><div><span className="world-stories-kicker">Around the world</span><h2>There is always something worth talking about.</h2><p>From a first coffee in Seoul to a late sunset in Lisbon, ordinary moments become memorable when someone new is there to hear them.</p></div>
         <div className="world-stories-topics">{["Late-night ideas","Music discoveries","A different point of view"].map((topic, index) => <div key={topic}><span>0{index + 1}</span><p>{topic}</p></div>)}</div>
-        <a href="/chat?mode=video" className="world-stories-action">Join a live conversation <ArrowRight size={17}/></a>
+        <button type="button" onClick={() => connect("video")} className="world-stories-action cursor-pointer">Join a live conversation <ArrowRight size={17}/></button>
       </div>
     </div></section>
 

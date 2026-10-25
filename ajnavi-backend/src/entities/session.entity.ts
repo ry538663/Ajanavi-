@@ -4,7 +4,9 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeor
 export class Session {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ type: "varchar", length: 80 }) roomId: string;
+  @Column({ type: "varchar", length: 20, default: "text" }) mode: string;
   @Column({ type: "simple-array", default: "" }) sharedInterests: string[];
   @CreateDateColumn() startedAt: Date;
   @Column({ type: "timestamptz", nullable: true }) endedAt: Date | null;
 }
+

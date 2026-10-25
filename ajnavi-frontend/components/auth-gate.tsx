@@ -1,6 +1,6 @@
 "use client";
 
-import { authStore, isCompleteProfile } from "@/lib/auth";
+import { authStore, getDefaultProfile } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
@@ -9,11 +9,28 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!authStore.getEmail()) return router.replace("/login");
-    if (!isCompleteProfile(authStore.getProfile())) return router.replace("/profile");
+    const email = authStore.getEmail();
+    const currentUrl = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/chat";
+    if (!email) {
+      router.replace(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
+    if (!authStore.getProfile()) {
+      authStore.setProfile(getDefaultProfile(email));
+    }
     setReady(true);
   }, [router]);
 
-  if (!ready) return <div className="grid min-h-screen place-items-center bg-[#f5f4f6] text-sm text-[#715b61]">Preparing your space…</div>;
+  if (!ready) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#19171c] text-sm text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+          <span className="text-white/60">Checking authentication…</span>
+        </div>
+      </div>
+    );
+  }
   return children;
 }
+

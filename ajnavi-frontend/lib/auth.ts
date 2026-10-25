@@ -10,6 +10,18 @@ export type AjnaviProfile = {
 const EMAIL_KEY = "ajnavi_email";
 const PROFILE_KEY = "ajnavi_profile";
 
+export const getDefaultProfile = (email?: string | null): AjnaviProfile => {
+  const defaultName = email ? email.split("@")[0] : "Stranger";
+  return {
+    name: defaultName,
+    gender: "prefer-not-to-say",
+    country: "India",
+    bio: "",
+    interests: ["Music", "Tech"],
+    over18: true,
+  };
+};
+
 export const authStore = {
   getEmail: () => typeof window === "undefined" ? null : localStorage.getItem(EMAIL_KEY),
   setEmail: (email: string) => localStorage.setItem(EMAIL_KEY, email),
